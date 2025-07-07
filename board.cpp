@@ -684,6 +684,8 @@ bool Board::movePiece(const Move &move)
     if (tolower(piece) == 'p' && abs(y2 - y1) == 2)
     {
         enpass = {x1, (y1 + y2) / 2};
+    }else{
+        enpass = {-1, -1};
     }
 
     if (isCheck())
