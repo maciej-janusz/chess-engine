@@ -82,6 +82,40 @@ std::pair<int, std::vector<BestMove>> getBest(Board &bd, int depth)
     return {best, b_moves};
 }
 
+std::string descField(Coords coords){
+    auto [x, y] = coords;
+    return std::string("") + ((char)('A'+ x)) + std::to_string(8-y);
+}
+
+std::string descSmove(Smove smv){
+    auto [first, second] = smv;
+    if(second.from.x == -1){
+        switch (second.from.y)
+        {
+        case 0:
+            return descField(first.from) + " to rook";
+        case 1:
+            return descField(first.from) + " to knight";
+        case 2:
+            return descField(first.from) + " to bishop";
+        case 3:
+            return descField(first.from) + " to queen";
+        default:
+            return "";
+        }    
+    }
+    if(second.to.x == -1){
+        return "enpass";
+    }
+    if(second.from.x == 7){
+        return "ks castle";
+    }
+    if(second.from.x == 0){
+        return "qs castle";
+    }
+    return "";
+}
+
 void printResult(const std::vector<BestMove> &b_moves, int val, Board bd)
 {
     std::cout << "best variant: " << val << "\n";
@@ -89,15 +123,20 @@ void printResult(const std::vector<BestMove> &b_moves, int val, Board bd)
     int cnt = 1;
     for (int i = b_moves.size() - 1; i >= 0; i--)
     {
+        std::string desc = "";
         if (std::holds_alternative<Move>(b_moves[i]))
         {
-            bd.movePiece(std::get<Move>(b_moves[i]));
+            Move mv = std::get<Move>(b_moves[i]);
+            bd.movePiece(mv);
+            desc = descField(mv.from) + " -> " + descField(mv.to);
         }
         else
         {
-            bd.smovePiece(std::get<Smove>(b_moves[i]));
+            Smove smv = std::get<Smove>(b_moves[i]);
+            bd.smovePiece(smv);
+            desc = descSmove(smv);
         }
-        std::cout << cnt << ":\n" << bd;
+        std::cout << cnt << ": " << desc << "\n" << bd;
         cnt ++;
     }
 }
