@@ -21,11 +21,13 @@ Clone the repo and build with `make`:
 ```bash
 git clone https://github.com/maciej-janusz/chess-engine.git
 cd chess-engine
-make```
+make
+```
 
 ## Usage
 To run the application, use the following general command structure:
 ```bash
-./chess_engine [...flags]```
+./chess_engine [...flags]
+```
 flags: noprint, noclock
 
