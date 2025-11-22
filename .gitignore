@@ -1,49 +1,47 @@
-# Compiled object files
-*.o
-*.obj
+# ----------------------------------------------------------------------
+# VS Code (Visual Studio Code)
+# ----------------------------------------------------------------------
 
-# Compiled binaries/executables
-a.out
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug / profiling files
-*.dSYM/
-*.stackdump
-*.su
-*.idb
-*.pdb
-*.mod*
-*.cmd
-*.ko
-*.d
-
-# Build directories
-/build/
-/bin/
-/lib/
-
-# Logs & temporary files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# System files
-.DS_Store
-Thumbs.db
-
-# Editor/IDE files
+# Local workspace settings
+# NOTE: If you want to share launch configurations or shared project
+# settings (like recommended extensions), you might keep files like
+# .vscode/launch.json or .vscode/settings.json.
+# However, usually, ignoring the whole folder is the safest default.
 .vscode/
-.idea/
-*.code-workspace
 
-# CMake (if you switch later)
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-Makefile.old
+# Ignore the workspace storage folder (used for extensions, state, etc.)
+.vscode-test/
+
+# ----------------------------------------------------------------------
+# macOS (Operating System Files)
+# ----------------------------------------------------------------------
+
+# Ignore Mac OS X Finder configuration files
+.DS_Store
+
+# Thumbnails and resource fork files
+.Trashes
+ehthumbs.db
+.Spotlight-V100
+.TemporaryItems
+Icon?
+*~
+
+# ----------------------------------------------------------------------
+# General Build & Dependency Files (Applicable to most projects)
+# ----------------------------------------------------------------------
+
+# Virtual Environments (if inside the project folder)
+venv/
+env/
+.venv/
+
+# Build artifacts and compiled files
+/dist/
+/build/
+*.o
+*.a
+*.so
+*.lo
+*.la
+*.dll
