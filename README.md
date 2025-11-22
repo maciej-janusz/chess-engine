@@ -9,7 +9,6 @@ A simple C++ chess engine built from scratch.
 - Move generation
 - Basic evaluation function
 - Command-line interface
-
 ---
 
 
@@ -22,4 +21,11 @@ Clone the repo and build with `make`:
 ```bash
 git clone https://github.com/maciej-janusz/chess-engine.git
 cd chess-engine
-make
+make```
+
+## Usage
+To run the application, use the following general command structure:
+```bash
+./chess_engine [...flags]```
+flags: noprint, noclock
+

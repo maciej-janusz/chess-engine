@@ -7,14 +7,19 @@ int readInt()
     return stoi(tmp);
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    char** begin = argv;
+    char** end = argv + argc; 
+    std::vector<std::string> args_vector(begin, end);
+
     // 2bB4/N2k1N2/3P1P2/4p3/1R3p1P/Q6p/6p1/K3R3 w - - 0 1
     std::string fen;
     std::cout << "Enter FEN: ";
     std::getline(std::cin, fen);
     std::cout << "Enter depth: ";
     int depth = readInt();
-    findBestVariant(fen, depth);
+    Engine engine(fen, args_vector);
+    engine.findBestVariant(depth);
     return 0;
 }

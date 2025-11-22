@@ -45,3 +45,6 @@ env/
 *.lo
 *.la
 *.dll
+
+#Exe
+chess_engine

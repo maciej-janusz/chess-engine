@@ -1,7 +1,19 @@
 #include "engine.h"
 #include <cassert>
 
-std::pair<int, std::vector<BestMove>> getBest(Board &bd, int depth)
+Engine::Engine(std::string fen) : bd(fen){}
+
+Engine::Engine(std::string fen, std::vector<std::string> _flags) : bd(fen){
+    flags = 0b11;
+    for (const auto& flag: _flags){
+        if(flag == "noprint")
+            flags &= 0b10;
+        else if(flag == "noclock")
+            flags &= 0b01;
+    }
+}
+
+std::pair<int, std::vector<BestMove>> Engine::getBest(Board &bd, int depth)
 {
     if (depth == 0)
     {
@@ -82,12 +94,12 @@ std::pair<int, std::vector<BestMove>> getBest(Board &bd, int depth)
     return {best, b_moves};
 }
 
-std::string descField(Coords coords){
+std::string Engine::descField(Coords coords){
     auto [x, y] = coords;
     return std::string("") + ((char)('A'+ x)) + std::to_string(8-y);
 }
 
-std::string descSmove(Smove smv){
+std::string Engine::descSmove(Smove smv){
     auto [first, second] = smv;
     if(second.from.x == -1){
         switch (second.from.y)
@@ -116,40 +128,65 @@ std::string descSmove(Smove smv){
     return "";
 }
 
-void printResult(const std::vector<BestMove> &b_moves, int val, Board bd)
+std::string Engine::doMove(Board &bd, const BestMove &b_move)
 {
-    std::cout << "best variant: " << val << "\n";
-    std::cout << "board:\n" << bd;
-    int cnt = 1;
-    for (int i = b_moves.size() - 1; i >= 0; i--)
-    {
         std::string desc = "";
-        if (std::holds_alternative<Move>(b_moves[i]))
+        if (std::holds_alternative<Move>(b_move))
         {
-            Move mv = std::get<Move>(b_moves[i]);
+            Move mv = std::get<Move>(b_move);
             bd.movePiece(mv);
             desc = descField(mv.from) + " -> " + descField(mv.to);
         }
         else
         {
-            Smove smv = std::get<Smove>(b_moves[i]);
+            Smove smv = std::get<Smove>(b_move);
             bd.smovePiece(smv);
             desc = descSmove(smv);
         }
-        std::cout << cnt << ": " << desc << "\n" << bd;
+        return desc;
+}
+void Engine::printMoves(Board bd, const std::vector<BestMove> &b_moves)
+{
+    int cnt = 1;
+    for (int i = b_moves.size() - 1; i >= 0; i--)
+    {
+        std::cout << cnt << ": " << doMove(bd, b_moves[i]) << "\n" << bd << "\n";
         cnt ++;
     }
 }
 
-void findBestVariant(std::string fen, int depth){
-    Board bd(fen);
-    
+
+
+void Engine::printResult(Board bd, int val, const std::vector<BestMove> &b_moves)
+{
+    std::cout << "best variant: " << val << "\n";
+    std::cout << "board:\n" << bd;
+    Engine::printMoves(bd, b_moves);
+}
+
+void Engine::printResult(Board bd, int val, const BestMove &bmove)
+{
+    std::cout << "best variant: " << val << "\n";
+    std::cout << "first move: " << doMove(bd, bmove) << "\n";
+}
+
+
+
+void Engine::findBestVariant(int depth){
+
     clock_t start = clock();
 
     auto [val, b_moves] = getBest(bd, depth);
-    printResult(b_moves, val, bd);
+
+    if(flags & 0b01)
+        printResult(bd, val, b_moves);
+    else
+        printResult(bd, val, b_moves[0]);
 
     clock_t end = clock();
-    double elapsed_time = double(end - start) / CLOCKS_PER_SEC;
-    std::cout << "time : " << elapsed_time << " s" << "\n";
+    if(flags & 0b10)
+    {
+        double elapsed_time = double(end - start) / CLOCKS_PER_SEC;
+        std::cout << "time : " << elapsed_time << " s" << "\n";
+    }
 }
