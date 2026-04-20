@@ -22,7 +22,7 @@ std::vector<std::string> Board::splitFen(const std::string &str)
  * (-1, -1): out of board
  * @param x X-coordinate
  * @param y Y-coordinate
- * @return value of field '\0' - empty field
+ * @return value of field, '\0' - empty field, ' ' - out of the board
  */
 char Board::getField(int x, int y)
 {
@@ -47,6 +47,11 @@ char Board::getField(int x, int y)
         return ' ';
     }
     return arr[y * 8 + x];
+}
+
+std::string Board::descField(Coords coords){
+    auto [x, y] = coords;
+    return std::string("") + ((char)('A'+ x)) + std::to_string(8-y);
 }
 
 /**
@@ -425,14 +430,16 @@ std::ostream &operator<<(std::ostream &os, Board &bd)
 
     os << "-----------------------\n";
     os << "move: " << (bd.on_move ? "white" : "black") << "\n";
-    std::string tmp =
+    std::string castles_val =
         ((bd.castles & 0b1000) > 0 ? std::string("K") : "") +
         ((bd.castles & 0b0100) > 0 ? std::string("Q") : "") +
         ((bd.castles & 0b0010) > 0 ? std::string("k") : "") +
         ((bd.castles & 0b0001) > 0 ? std::string("q") : "");
 
-    os << "castles : " << tmp << "\n";
-    os << "enpass : (" << bd.enpass.x << ", " << bd.enpass.y << ")\n";
+    castles_val = castles_val != "" ? castles_val : "-";
+    os << "castles : " << castles_val << "\n";
+    std::string enpass_val = bd.enpass.x == -1 ? "-" : Board::descField(bd.enpass);
+    os << "enpass : " << enpass_val << "\n";
     os << "score: " << bd.getScore() << "\n";
     return os;
 }
@@ -565,10 +572,12 @@ std::vector<Smove> Board::specialMoves()
     int pass_line = on_move ? 3 : 4;
     if (x >= 0 && y >= 0)
     {
-        if (getField(x - 1, pass_line))
-            moves.push_back({{{x - 1, pass_line}, enpass}, {{x, pass_line}, {-1, -1}}});
-        if (getField(x + 1, pass_line))
-            moves.push_back({{{x + 1, pass_line}, enpass}, {{x, pass_line}, {-1, -1}}});
+        char field;
+        for(int i = -1; i <= 1; i += 2){
+            field = getField(x + i, pass_line);
+            if (field != '\0' && field != ' ')
+                moves.push_back({{{x + i, pass_line}, enpass}, {{x, pass_line}, {-1, -1}}});
+        }
     }
 
     // check for castling
@@ -709,8 +718,11 @@ bool Board::smovePiece(const Smove &smove)
     if (!movePiece(move1))
         return false;
     on_move = !on_move;
-    if (!movePiece(move2))
+    if (!movePiece(move2)){
+        undoMove();
+        on_move = !on_move;
         return false;
+    }
     return true;
 }
 

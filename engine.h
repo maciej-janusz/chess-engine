@@ -17,7 +17,6 @@ class Engine{
         Board bd;
         unsigned int flags; // print clock, print moves
         std::pair<int, std::vector<BestMove>> getBest(Board &bd, int depth);
-        std::string descField(Coords coords);
         std::string descSmove(Smove smv);
         std::string doMove(Board &bd, const BestMove &b_move);
         void printMoves(Board bd, const std::vector<BestMove> &b_moves);

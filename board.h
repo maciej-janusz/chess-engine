@@ -72,7 +72,8 @@ public:
     Board(const Board &other);
     
     friend std::ostream &operator<<(std::ostream &os, Board &bd);
-    
+
+    static std::string descField(Coords coords);
     void readFen(std::string fen);
     bool onMove();
     std::vector<Move> getMoves(Coords from);

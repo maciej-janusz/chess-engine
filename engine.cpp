@@ -94,10 +94,7 @@ std::pair<int, std::vector<BestMove>> Engine::getBest(Board &bd, int depth)
     return {best, b_moves};
 }
 
-std::string Engine::descField(Coords coords){
-    auto [x, y] = coords;
-    return std::string("") + ((char)('A'+ x)) + std::to_string(8-y);
-}
+
 
 std::string Engine::descSmove(Smove smv){
     auto [first, second] = smv;
@@ -105,13 +102,13 @@ std::string Engine::descSmove(Smove smv){
         switch (second.from.y)
         {
         case 0:
-            return descField(first.from) + " to rook";
+            return Board::descField(first.from) + " to rook";
         case 1:
-            return descField(first.from) + " to knight";
+            return Board::descField(first.from) + " to knight";
         case 2:
-            return descField(first.from) + " to bishop";
+            return Board::descField(first.from) + " to bishop";
         case 3:
-            return descField(first.from) + " to queen";
+            return Board::descField(first.from) + " to queen";
         default:
             return "";
         }    
@@ -135,7 +132,7 @@ std::string Engine::doMove(Board &bd, const BestMove &b_move)
         {
             Move mv = std::get<Move>(b_move);
             bd.movePiece(mv);
-            desc = descField(mv.from) + " -> " + descField(mv.to);
+            desc = Board::descField(mv.from) + " -> " + Board::descField(mv.to);
         }
         else
         {
@@ -145,6 +142,7 @@ std::string Engine::doMove(Board &bd, const BestMove &b_move)
         }
         return desc;
 }
+
 void Engine::printMoves(Board bd, const std::vector<BestMove> &b_moves)
 {
     int cnt = 1;
@@ -154,8 +152,6 @@ void Engine::printMoves(Board bd, const std::vector<BestMove> &b_moves)
         cnt ++;
     }
 }
-
-
 
 void Engine::printResult(Board bd, int val, const std::vector<BestMove> &b_moves)
 {
@@ -169,8 +165,6 @@ void Engine::printResult(Board bd, int val, const BestMove &bmove)
     std::cout << "best variant: " << val << "\n";
     std::cout << "first move: " << doMove(bd, bmove) << "\n";
 }
-
-
 
 void Engine::findBestVariant(int depth){
 
