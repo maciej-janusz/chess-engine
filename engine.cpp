@@ -94,10 +94,10 @@ void Engine::printResult(Board bd, int score, const Move &bmove)
 
 void Engine::findBestVariant(int depth)
 {
-
     clock_t start = clock();
 
     auto [score, b_moves] = getBest(bd, depth);
+    if(!bd.onMove()) score = -score;
 
     if (flags & 0b01)
         printResult(bd, score, b_moves);
