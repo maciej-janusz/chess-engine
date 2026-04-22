@@ -54,6 +54,58 @@ std::string Board::descField(Coords coords){
     return std::string("") + ((char)('A'+ x)) + std::to_string(8-y);
 }
 
+std::string Board::descSmove(const Smove *smv)
+{
+    auto [first, second] = *smv;
+    if (second.from.x == -1)
+    {
+        switch (second.from.y)
+        {
+        case 0:
+            return Board::descField(first.from) + " to rook";
+        case 1:
+            return Board::descField(first.from) + " to knight";
+        case 2:
+            return Board::descField(first.from) + " to bishop";
+        case 3:
+            return Board::descField(first.from) + " to queen";
+        default:
+            return "";
+        }
+    }
+    if (second.to.x == -1)
+    {
+        return "enpass";
+    }
+    if (second.from.x == 7)
+    {
+        return "ks castle";
+    }
+    if (second.from.x == 0)
+    {
+        return "qs castle";
+    }
+    return "";
+}
+
+std::string Board::descNmove(const Nmove *mv){
+    return descField(mv->from) + " -> " + descField(mv->to);
+}
+
+std::string Board::descMove(const Move &move)
+{
+    if (std::holds_alternative<Nmove>(move))
+    {
+        Nmove mv = std::get<Nmove>(move);
+        return descNmove(&mv);
+    }
+    else
+    {
+        Smove smv = std::get<Smove>(move);
+        return descSmove(&smv);
+    }
+}
+
 /**
  * @brief checks if there is a collision
  * @param x X-coordinate
@@ -93,9 +145,9 @@ bool Board::getColor(int x, int y)
     return isupper(getField(x, y));
 }
 
-std::vector<Move> Board::pMoves(Coords from)
+std::vector<Nmove> Board::pMoves(Coords from)
 {
-    std::vector<Move> moves;
+    std::vector<Nmove> moves;
     auto [x, y] = from;
     int dir = on_move ? -1 : 1;
     int start = on_move ? 6 : 1;
@@ -111,9 +163,9 @@ std::vector<Move> Board::pMoves(Coords from)
 
     return moves;
 }
-std::vector<Move> Board::nMoves(Coords from)
+std::vector<Nmove> Board::nMoves(Coords from)
 {
-    std::vector<Move> moves;
+    std::vector<Nmove> moves;
     auto [x, y] = from;
     const std::vector<Coords> knight_moves = {
         {1, 2}, {1, -2}, {-1, 2}, {-1, -2}, {2, 1}, {2, -1}, {-2, 1}, {-2, -1}};
@@ -131,9 +183,9 @@ std::vector<Move> Board::nMoves(Coords from)
 
     return moves;
 }
-std::vector<Move> Board::bMoves(Coords from)
+std::vector<Nmove> Board::bMoves(Coords from)
 {
-    std::vector<Move> moves;
+    std::vector<Nmove> moves;
     auto [x, y] = from;
 
     int x1 = x + 1, y1 = y + 1;
@@ -178,9 +230,9 @@ std::vector<Move> Board::bMoves(Coords from)
 
     return moves;
 }
-std::vector<Move> Board::rMoves(Coords from)
+std::vector<Nmove> Board::rMoves(Coords from)
 {
-    std::vector<Move> moves;
+    std::vector<Nmove> moves;
     auto [x, y] = from;
 
     int x1 = x, y1 = y + 1;
@@ -221,16 +273,16 @@ std::vector<Move> Board::rMoves(Coords from)
 
     return moves;
 }
-std::vector<Move> Board::qMoves(Coords from)
+std::vector<Nmove> Board::qMoves(Coords from)
 {
-    std::vector<Move> moves = bMoves(from);
-    std::vector<Move> new_moves = rMoves(from);
+    std::vector<Nmove> moves = bMoves(from);
+    std::vector<Nmove> new_moves = rMoves(from);
     moves.insert(moves.end(), new_moves.begin(), new_moves.end());
     return moves;
 }
-std::vector<Move> Board::kMoves(Coords from)
+std::vector<Nmove> Board::kMoves(Coords from)
 {
-    std::vector<Move> moves;
+    std::vector<Nmove> moves;
     auto [x, y] = from;
 
     if (isCollision(x + 1, y + 1) == NO_COLL || isCollision(x + 1, y + 1) == OPP)
@@ -271,7 +323,6 @@ bool Board::nChecking(Coords from)
     }
     return false;
 }
-
 bool Board::bChecking(Coords from, char piece)
 {
     auto [x, y] = from;
@@ -437,9 +488,9 @@ std::ostream &operator<<(std::ostream &os, Board &bd)
         ((bd.castles & 0b0001) > 0 ? std::string("q") : "");
 
     castles_val = castles_val != "" ? castles_val : "-";
-    os << "castles : " << castles_val << "\n";
+    os << "castles: " << castles_val << "\n";
     std::string enpass_val = bd.enpass.x == -1 ? "-" : Board::descField(bd.enpass);
-    os << "enpass : " << enpass_val << "\n";
+    os << "enpass: " << enpass_val << "\n";
     os << "score: " << bd.getScore() << "\n";
     return os;
 }
@@ -504,7 +555,7 @@ bool Board::onMove()
     return on_move;
 }
 
-std::vector<Move> Board::getMoves(Coords from)
+std::vector<Nmove> Board::getMoves(Coords from)
 {
     auto [x, y] = from;
     char piece = getField(x, y);
@@ -532,16 +583,16 @@ std::vector<Move> Board::getMoves(Coords from)
     }
 }
 
-std::vector<Move> Board::allMoves()
+std::vector<Nmove> Board::normalMoves()
 {
-    std::vector<Move> moves;
+    std::vector<Nmove> moves;
     for (int i = 0; i < 8; i++)
     {
         for (int j = 0; j < 8; j++)
         {
             if (getColor(i, j) != on_move)
                 continue;
-            std::vector<Move> new_moves = getMoves({i, j});
+            std::vector<Nmove> new_moves = getMoves({i, j});
             moves.insert(moves.end(), new_moves.begin(), new_moves.end());
         }
     }
@@ -550,7 +601,7 @@ std::vector<Move> Board::allMoves()
 
 std::vector<Smove> Board::specialMoves()
 {
-    std::vector<std::pair<Move, Move>> moves;
+    std::vector<std::pair<Nmove, Nmove>> moves;
 
     // check if pawns can transform
     int dir = on_move ? -1 : 1;
@@ -605,6 +656,18 @@ std::vector<Smove> Board::specialMoves()
     return moves;
 }
 
+std::vector<Move> Board::allMoves(){
+    std::vector<Nmove> nmoves = Board::normalMoves();
+    std::vector<Smove> smoves = Board::specialMoves();
+
+    std::vector<Move> moves;
+    moves.reserve(1 + nmoves.size() + smoves.size());
+    moves.insert(moves.end(), nmoves.begin(), nmoves.end());
+    moves.insert(moves.end(), smoves.begin(), smoves.end());
+
+    return moves;
+}
+
 bool Board::isCheck(Coords from)
 {
     if (from.x == -1)
@@ -618,7 +681,7 @@ bool Board::isMate()
 {
     if (!isCheck())
         return false;
-    std::vector<Move> moves = allMoves();
+    std::vector<Nmove> moves = normalMoves();
     bool found = false;
     for (const auto &move : moves)
     {
@@ -637,7 +700,7 @@ bool Board::isStaleMate()
     if (isCheck())
         return false;
 
-    std::vector<Move> moves = allMoves();
+    std::vector<Nmove> moves = normalMoves();
     bool found = false;
     for (const auto &move : moves)
     {
@@ -651,10 +714,10 @@ bool Board::isStaleMate()
     return true;
 }
 
-bool Board::movePiece(const Move &move)
+bool Board::nmovePiece(const Nmove *move)
 {
-    auto [from, to] = move;
-    UndoNode undo;
+    auto [from, to] = *move;
+    UndoNmove undo;
     undo.from = from;
     undo.from_field = getField(from.x, from.y);
     undo.to = to;
@@ -711,9 +774,9 @@ bool Board::movePiece(const Move &move)
     return true;
 }
 
-bool Board::smovePiece(const Smove &smove)
+bool Board::smovePiece(const Smove *smove)
 {
-    auto [move1, move2] = smove;
+    auto [move1, move2] = *smove;
 
     if (!movePiece(move1))
         return false;
@@ -723,30 +786,51 @@ bool Board::smovePiece(const Smove &smove)
         on_move = !on_move;
         return false;
     }
+
+    
+    UndoSmove undo_smove;
+    
+    undo_smove.first = std::get<UndoNmove>(undo_stack.back());
+    undo_stack.pop_back();
+    undo_smove.second = std::get<UndoNmove>(undo_stack.back());
+    undo_stack.pop_back();
+
+    undo_stack.push_back(undo_smove);
+
     return true;
+}
+
+bool Board::movePiece(const Move &move){
+    if (auto* nm = std::get_if<Nmove>(&move)) {
+        return nmovePiece(nm);
+    } else if (auto* sm = std::get_if<Smove>(&move)) {
+        return smovePiece(sm);
+    }
+    return false;
+}
+
+void Board::undo(const UndoNmove *undo_nmove)
+{   
+    castles = undo_nmove->castles;
+    enpass = undo_nmove->enpass;
+    setField(undo_nmove->to.x, undo_nmove->to.y, undo_nmove->to_field);
+    setField(undo_nmove->from.x, undo_nmove->from.y, undo_nmove->from_field);
+    on_move = !on_move;
 }
 
 bool Board::undoMove()
-{
-    if (undo_stack.size() == 0)
+{   
+    if (undo_stack.size() < 1)
         return false;
-    UndoNode undo = undo_stack.back();
-    undo_stack.pop_back();
-    castles = undo.castles;
-    enpass = undo.enpass;
-    setField(undo.to.x, undo.to.y, undo.to_field);
-    setField(undo.from.x, undo.from.y, undo.from_field);
-    on_move = !on_move;
-    return true;
-}
 
-bool Board::undoSmove()
-{
-    if (undo_stack.size() < 2)
-        return false;
-    undoMove();
-    on_move = !on_move;
-    undoMove();
+    if (auto* nmn = std::get_if<UndoNmove>(&undo_stack.back())) {
+        undo(nmn);
+    } else if (auto* smn = std::get_if<UndoSmove>(&undo_stack.back())) {
+        undo(&(smn->first));
+        on_move = !on_move;
+        undo(&(smn->second));
+    }
+    undo_stack.pop_back();
     return true;
 }
 
@@ -776,4 +860,11 @@ int Board::getScore()
         }
     }
     return white - black;
+}
+
+int Board::eval()
+{
+    int eval = getScore();
+    if (!on_move) return -eval;
+    return eval;
 }

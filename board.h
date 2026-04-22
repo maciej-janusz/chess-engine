@@ -19,14 +19,16 @@ struct Coords {
     int y;
 };
 
-struct Move {
+struct Nmove {
     Coords from;
     Coords to;
 };
 
-typedef std::pair<Move, Move> Smove;
+typedef std::pair<Nmove, Nmove> Smove;
 
-struct UndoNode {
+typedef std::variant<Nmove, Smove> Move;
+
+struct UndoNmove {
     Coords from;
     char from_field;
     Coords to;
@@ -34,6 +36,10 @@ struct UndoNode {
     unsigned int castles;
     Coords enpass;
 };
+
+typedef std::pair<UndoNmove, UndoNmove> UndoSmove;
+
+typedef std::variant<UndoNmove, UndoSmove> UndoMove;
 
 class Board {
 private:
@@ -44,7 +50,8 @@ private:
     Coords enpass; // (x, y)
     bool on_move; // true: white, false: black
 
-    std::vector<UndoNode> undo_stack;
+    std::vector<UndoMove> undo_stack;
+    std::vector<bool> undo_special;
 
     std::vector<std::string> splitFen(const std::string &str);
     char getField(int x, int y);
@@ -52,12 +59,12 @@ private:
     void setField(int x, int y, char piece);
     bool getColor(int x, int y);
     
-    std::vector<Move> pMoves(Coords from);
-    std::vector<Move> nMoves(Coords from);
-    std::vector<Move> bMoves(Coords from);
-    std::vector<Move> rMoves(Coords from);
-    std::vector<Move> qMoves(Coords from);
-    std::vector<Move> kMoves(Coords from);
+    std::vector<Nmove> pMoves(Coords from);
+    std::vector<Nmove> nMoves(Coords from);
+    std::vector<Nmove> bMoves(Coords from);
+    std::vector<Nmove> rMoves(Coords from);
+    std::vector<Nmove> qMoves(Coords from);
+    std::vector<Nmove> kMoves(Coords from);
     
     bool nChecking(Coords from);
     bool bChecking(Coords from, char piece = 'b');
@@ -66,6 +73,18 @@ private:
     bool pChecking(Coords from);
     
     Coords getKingOnMove();
+    
+    std::vector<Nmove> normalMoves();
+    std::vector<Smove> specialMoves();
+    
+    void undo(const UndoNmove *undo_nmove);
+    
+    bool smovePiece(const Smove *smove);
+    bool nmovePiece(const Nmove *nmove);
+
+    
+    static std::string descNmove(const Nmove *nmv);
+    static std::string descSmove(const Smove *smv);
 
 public:
     Board(std::string fen = "");
@@ -74,19 +93,19 @@ public:
     friend std::ostream &operator<<(std::ostream &os, Board &bd);
 
     static std::string descField(Coords coords);
+    static std::string descMove(const Move &move);
     void readFen(std::string fen);
     bool onMove();
-    std::vector<Move> getMoves(Coords from);
     std::vector<Move> allMoves();
-    std::vector<Smove> specialMoves();
+    std::vector<Nmove> getMoves(Coords from);
+
     bool isCheck(Coords from = {-1, -1});
     bool isMate();
     bool isStaleMate();
     bool movePiece(const Move &move);
-    bool smovePiece(const Smove &smove);
     bool undoMove();
-    bool undoSmove();
     int getScore();
+    int eval();
 };
 
 #endif // BOARD_H
