@@ -1,7 +1,8 @@
 #include "board.h"
 #include <sstream>
 #include <algorithm>
-#include <cassert>
+#include <cctype>
+#include <cstdlib>
 
 std::vector<std::string> Board::splitFen(const std::string &str)
 {
@@ -59,23 +60,14 @@ std::string Board::descSmove(const Smove *smv)
     auto [first, second] = *smv;
     if (second.from.x == -1)
     {
-        switch (second.from.y)
-        {
-        case 0:
-            return Board::descField(first.from) + " to rook";
-        case 1:
-            return Board::descField(first.from) + " to knight";
-        case 2:
-            return Board::descField(first.from) + " to bishop";
-        case 3:
-            return Board::descField(first.from) + " to queen";
-        default:
+        const char *names[] = {"rook", "knight", "bishop", "queen"};
+        if (second.from.y < 0 || second.from.y > 3)
             return "";
-        }
+        return descField(first.from) + " -> " + descField(first.to) + " =" + names[second.from.y];
     }
     if (second.to.x == -1)
     {
-        return "enpass";
+        return descField(first.from) + " -> " + descField(first.to) + " enpass";
     }
     if (second.from.x == 7)
     {
@@ -152,14 +144,19 @@ std::vector<Nmove> Board::pMoves(Coords from)
     int dir = on_move ? -1 : 1;
     int start = on_move ? 6 : 1;
     int end = 7 - start;
-    if (y != end && isCollision(x, y + dir) == NO_COLL)
+    // every move of a pawn on the last-but-one rank is a promotion (see specialMoves)
+    if (y == end)
+        return moves;
+    if (isCollision(x, y + dir) == NO_COLL)
+    {
         moves.push_back({from, {x, y + dir}});
+        if (y == start && isCollision(x, y + 2 * dir) == NO_COLL)
+            moves.push_back({from, {x, y + 2 * dir}});
+    }
     if (isCollision(x + 1, y + dir) == OPP)
         moves.push_back({from, {x + 1, y + dir}});
     if (isCollision(x - 1, y + dir) == OPP)
         moves.push_back({from, {x - 1, y + dir}});
-    if (y == start && isCollision(x, y + 2 * dir) == NO_COLL)
-        moves.push_back({from, {x, y + 2 * dir}});
 
     return moves;
 }
@@ -418,6 +415,20 @@ bool Board::pChecking(Coords from)
     return false;
 }
 
+bool Board::kChecking(Coords from)
+{
+    auto [x, y] = from;
+    for (int dx = -1; dx <= 1; dx++)
+    {
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            if ((dx != 0 || dy != 0) && isCollision(x + dx, y + dy) == OPP && tolower(getField(x + dx, y + dy)) == 'k')
+                return true;
+        }
+    }
+    return false;
+}
+
 Coords Board::getKingOnMove()
 {
     int x = -1, y = -1;
@@ -446,18 +457,6 @@ Board::Board(std::string fen)
         fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
     }
     readFen(fen);
-}
-
-Board::Board(const Board &other)
-{
-    for (size_t i = 0; i < 64; i++)
-    {
-        arr[i] = other.arr[i];
-    }
-    castles = other.castles;
-    enpass = other.enpass;
-
-    on_move = other.on_move;
 }
 
 std::ostream &operator<<(std::ostream &os, Board &bd)
@@ -497,57 +496,91 @@ std::ostream &operator<<(std::ostream &os, Board &bd)
 
 void Board::readFen(std::string fen)
 {
-    for (int i = 0; i < 64; i++)
-    {
-        arr[i] = '\0';
-    }
-    castles = 0;
-    enpass = {-1, -1};
-
-    int pos = 0;
-
     std::vector<std::string> fenParts = splitFen(fen);
     if (fenParts.size() < 4)
     {
-        throw std::runtime_error("Invalid fen!");
+        throw std::runtime_error("Invalid FEN: expected at least 4 fields");
     }
+    const std::string &fen_bd = fenParts[0];
+    const std::string &fen_mv = fenParts[1];
+    const std::string &fen_cs = fenParts[2];
+    const std::string &fen_en = fenParts[3];
 
-    std::string fen_mv = fenParts[1];
-    std::string fen_cs = fenParts[2];
-    std::string fen_bd = fenParts[0];
-    std::string fen_en = fenParts[3];
-
-    on_move = fen_mv[0] == 'w';
-
-    for (const char &piece : fen_bd)
+    // parse into locals first, so a bad FEN leaves the board untouched
+    char new_arr[64] = {};
+    int x = 0, y = 0, white_kings = 0, black_kings = 0;
+    for (char c : fen_bd)
     {
-        if (isdigit(piece))
-            pos += atoi(&piece);
+        if (c == '/')
+        {
+            if (x != 8 || y >= 7)
+                throw std::runtime_error("Invalid FEN: wrong rank length");
+            x = 0;
+            y++;
+        }
+        else if (c >= '1' && c <= '8')
+        {
+            x += c - '0';
+            if (x > 8)
+                throw std::runtime_error("Invalid FEN: rank has more than 8 squares");
+        }
+        else if (std::string("pnbrqkPNBRQK").find(c) != std::string::npos)
+        {
+            if (x > 7)
+                throw std::runtime_error("Invalid FEN: rank has more than 8 squares");
+            if (tolower(c) == 'p' && (y == 0 || y == 7))
+                throw std::runtime_error("Invalid FEN: pawn on the first or last rank");
+            if (c == 'K')
+                white_kings++;
+            if (c == 'k')
+                black_kings++;
+            new_arr[y * 8 + x] = c;
+            x++;
+        }
         else
         {
-            if (piece == '/')
-                continue;
-            arr[pos] = piece;
-            pos++;
+            throw std::runtime_error(std::string("Invalid FEN: unexpected character '") + c + "'");
+        }
+    }
+    if (y != 7 || x != 8)
+        throw std::runtime_error("Invalid FEN: board must have 8 ranks of 8 squares");
+    if (white_kings != 1 || black_kings != 1)
+        throw std::runtime_error("Invalid FEN: each side needs exactly one king");
+
+    if (fen_mv != "w" && fen_mv != "b")
+        throw std::runtime_error("Invalid FEN: side to move must be 'w' or 'b'");
+
+    unsigned int new_castles = 0;
+    if (fen_cs != "-")
+    {
+        for (char c : fen_cs)
+        {
+            if (c == 'K')
+                new_castles |= 0b1000;
+            else if (c == 'Q')
+                new_castles |= 0b0100;
+            else if (c == 'k')
+                new_castles |= 0b0010;
+            else if (c == 'q')
+                new_castles |= 0b0001;
+            else
+                throw std::runtime_error("Invalid FEN: bad castling field");
         }
     }
 
-    if (count(fen_cs.begin(), fen_cs.end(), 'K') == 1)
-        castles = castles | 0b1000;
-    if (count(fen_cs.begin(), fen_cs.end(), 'Q') == 1)
-        castles = castles | 0b0100;
-    if (count(fen_cs.begin(), fen_cs.end(), 'k') == 1)
-        castles = castles | 0b0010;
-    if (count(fen_cs.begin(), fen_cs.end(), 'q') == 1)
-        castles = castles | 0b0001;
-
-    if (fen_en.length() == 2)
+    Coords new_enpass = {-1, -1};
+    if (fen_en != "-")
     {
-        int x = (int)fen_en[0] - (int)'a';
-        int y = atoi(&fen_en[1]);
-        enpass = {x, y};
+        if (fen_en.length() != 2 || fen_en[0] < 'a' || fen_en[0] > 'h' || (fen_en[1] != '3' && fen_en[1] != '6'))
+            throw std::runtime_error("Invalid FEN: bad en passant field");
+        new_enpass = {fen_en[0] - 'a', 8 - (fen_en[1] - '0')};
     }
-    return;
+
+    std::copy(new_arr, new_arr + 64, arr);
+    on_move = fen_mv == "w";
+    castles = new_castles;
+    enpass = new_enpass;
+    undo_stack.clear();
 }
 
 bool Board::onMove()
@@ -603,51 +636,59 @@ std::vector<Smove> Board::specialMoves()
 {
     std::vector<std::pair<Nmove, Nmove>> moves;
 
-    // check if pawns can transform
+    // promotions: push onto an empty square or capture an opponent's piece
     int dir = on_move ? -1 : 1;
     int end = on_move ? 1 : 6;
     char pawn_pattern = on_move ? 'P' : 'p';
     for (int x = 0; x < 8; x++)
     {
-        if (getField(x, end) == pawn_pattern)
+        if (getField(x, end) != pawn_pattern)
+            continue;
+        for (int dx = -1; dx <= 1; dx++)
         {
+            Collision coll = isCollision(x + dx, end + dir);
+            if (coll != (dx == 0 ? NO_COLL : OPP))
+                continue;
             for (int i = 0; i < 4; i++)
             {
-                moves.push_back({{{x, end}, {x, end + dir}}, {{-1, i}, {x, end + dir}}});
+                moves.push_back({{{x, end}, {x + dx, end + dir}}, {{-1, i}, {x + dx, end + dir}}});
             }
         }
     }
 
-    // check for enpassant
+    // en passant: the capturing pawn must be ours, the captured one the opponent's
     auto [x, y] = enpass;
+    int target_line = on_move ? 2 : 5;
     int pass_line = on_move ? 3 : 4;
-    if (x >= 0 && y >= 0)
+    char enemy_pawn = on_move ? 'p' : 'P';
+    if (x >= 0 && y == target_line && getField(x, y) == '\0' && getField(x, pass_line) == enemy_pawn)
     {
-        char field;
-        for(int i = -1; i <= 1; i += 2){
-            field = getField(x + i, pass_line);
-            if (field != '\0' && field != ' ')
+        for (int i = -1; i <= 1; i += 2)
+        {
+            if (x + i < 0 || x + i > 7)
+                continue;
+            if (getField(x + i, pass_line) == pawn_pattern)
                 moves.push_back({{{x + i, pass_line}, enpass}, {{x, pass_line}, {-1, -1}}});
         }
     }
 
-    // check for castling
+    // castling: king and rook on their home squares, empty path, king not in/through check
+    // (the destination square is verified after the move is made)
     int king_line = on_move ? 7 : 0;
-
-    if (castles & (0b10 << (on_move ? 2 : 0)))
+    char king = on_move ? 'K' : 'k';
+    char rook = on_move ? 'R' : 'r';
+    if (getField(4, king_line) == king)
     {
-        if (getField(5, king_line) == '\0' && getField(6, king_line) == '\0' &&
-            (!isCheck({4, king_line}) && !isCheck({5, king_line}) && !isCheck({6, king_line})))
+        if ((castles & (0b10 << (on_move ? 2 : 0))) && getField(7, king_line) == rook &&
+            getField(5, king_line) == '\0' && getField(6, king_line) == '\0' &&
+            !isCheck({4, king_line}) && !isCheck({5, king_line}))
         {
-
             moves.push_back({{{4, king_line}, {6, king_line}}, {{7, king_line}, {5, king_line}}});
         }
-    }
 
-    if (castles & (0b01 << (on_move ? 2 : 0)))
-    {
-        if (getField(1, king_line) == '\0' && getField(2, king_line) == '\0' && getField(3, king_line) == '\0' &&
-            (!isCheck({1, king_line}) && !isCheck({2, king_line}) && !isCheck({3, king_line}) && !isCheck({4, king_line})))
+        if ((castles & (0b01 << (on_move ? 2 : 0))) && getField(0, king_line) == rook &&
+            getField(1, king_line) == '\0' && getField(2, king_line) == '\0' && getField(3, king_line) == '\0' &&
+            !isCheck({4, king_line}) && !isCheck({3, king_line}))
         {
             moves.push_back({{{4, king_line}, {2, king_line}}, {{0, king_line}, {3, king_line}}});
         }
@@ -674,101 +715,80 @@ bool Board::isCheck(Coords from)
     {
         from = getKingOnMove();
     }
-    return bChecking(from) || rChecking(from) || nChecking(from) || pChecking(from) || qChecking(from);
+    return bChecking(from) || rChecking(from) || nChecking(from) || pChecking(from) || qChecking(from) || kChecking(from);
+}
+
+bool Board::hasLegalMove()
+{
+    for (const auto &move : allMoves())
+    {
+        if (movePiece(move))
+        {
+            undoMove();
+            return true;
+        }
+    }
+    return false;
 }
 
 bool Board::isMate()
 {
-    if (!isCheck())
-        return false;
-    std::vector<Nmove> moves = normalMoves();
-    bool found = false;
-    for (const auto &move : moves)
-    {
-        found = movePiece(move);
-        if (found)
-        {
-            assert(undoMove());
-            return false;
-        }
-    }
-    return true;
+    return isCheck() && !hasLegalMove();
 }
 
 bool Board::isStaleMate()
 {
-    if (isCheck())
-        return false;
+    return !isCheck() && !hasLegalMove();
+}
 
-    std::vector<Nmove> moves = normalMoves();
-    bool found = false;
-    for (const auto &move : moves)
-    {
-        found = movePiece(move);
-        if (found)
-        {
-            assert(undoMove());
-            return false;
-        }
-    }
-    return true;
+// castling right lost when a piece moves from or to this square
+static unsigned int cornerMask(Coords c)
+{
+    if (c.x == 7 && c.y == 7) return 0b1000;
+    if (c.x == 0 && c.y == 7) return 0b0100;
+    if (c.x == 7 && c.y == 0) return 0b0010;
+    if (c.x == 0 && c.y == 0) return 0b0001;
+    return 0;
+}
+
+UndoNmove Board::applyNmove(const Nmove &move)
+{
+    const auto &[from, to] = move;
+    UndoNmove undo = {from, getField(from.x, from.y), to, getField(to.x, to.y), castles, enpass};
+
+    char piece = undo.from_field;
+    setField(from.x, from.y, '\0');
+    setField(to.x, to.y, piece);
+
+    if (tolower(piece) == 'k')
+        castles &= on_move ? 0b0011 : 0b1100;
+    // rook moved away from, or was captured on, its home square
+    castles &= ~(cornerMask(from) | cornerMask(to));
+
+    if (tolower(piece) == 'p' && to.y >= 0 && abs(to.y - from.y) == 2)
+        enpass = {from.x, (from.y + to.y) / 2};
+    else
+        enpass = {-1, -1};
+
+    return undo;
+}
+
+void Board::restore(const UndoNmove &undo)
+{
+    castles = undo.castles;
+    enpass = undo.enpass;
+    setField(undo.to.x, undo.to.y, undo.to_field);
+    setField(undo.from.x, undo.from.y, undo.from_field);
 }
 
 bool Board::nmovePiece(const Nmove *move)
 {
-    auto [from, to] = *move;
-    UndoNmove undo;
-    undo.from = from;
-    undo.from_field = getField(from.x, from.y);
-    undo.to = to;
-    undo.to_field = getField(to.x, to.y);
-    undo.castles = castles;
-    undo.enpass = enpass;
-
-    auto [x1, y1] = from;
-    char piece = getField(x1, y1);
-    setField(x1, y1, '\0');
-    auto [x2, y2] = to;
-    setField(x2, y2, piece);
-
-    if (tolower(piece) == 'k')
-    {
-        if (on_move)
-            castles = castles & 0b0011;
-        else
-            castles = castles & 0b1100;
-    }
-    if (tolower(piece) == 'r')
-    {
-        if (x1 == 7){
-            if (on_move)
-                castles = castles & 0b0111;
-            else
-                castles = castles & 0b1101;
-        }
-        else if (x1 == 0){
-            if (on_move)
-                castles = castles & 0b1011;
-            else
-                castles = castles & 0b1110;
-        }
-    }
-    if (tolower(piece) == 'p' && abs(y2 - y1) == 2)
-    {
-        enpass = {x1, (y1 + y2) / 2};
-    }else{
-        enpass = {-1, -1};
-    }
-
+    UndoNmove undo = applyNmove(*move);
     if (isCheck())
     {
-        castles = undo.castles;
-        enpass = undo.enpass;
-        setField(undo.to.x, undo.to.y, undo.to_field);
-        setField(undo.from.x, undo.from.y, undo.from_field);
+        restore(undo);
         return false;
     }
-
     undo_stack.push_back(undo);
     on_move = !on_move;
     return true;
@@ -776,90 +796,86 @@ bool Board::nmovePiece(const Nmove *move)
 
 bool Board::smovePiece(const Smove *smove)
 {
-    auto [move1, move2] = *smove;
-
-    if (!movePiece(move1))
-        return false;
-    on_move = !on_move;
-    if (!movePiece(move2)){
-        undoMove();
-        on_move = !on_move;
+    // both halves are applied before the legality check, so e.g. en passant
+    // capturing the checking pawn, or a promotion blocking a check, is legal
+    UndoNmove first = applyNmove(smove->first);
+    UndoNmove second = applyNmove(smove->second);
+    if (isCheck())
+    {
+        restore(second);
+        restore(first);
         return false;
     }
-
-    
-    UndoSmove undo_smove;
-    
-    undo_smove.first = std::get<UndoNmove>(undo_stack.back());
-    undo_stack.pop_back();
-    undo_smove.second = std::get<UndoNmove>(undo_stack.back());
-    undo_stack.pop_back();
-
-    undo_stack.push_back(undo_smove);
-
+    undo_stack.push_back(UndoSmove{first, second});
+    on_move = !on_move;
     return true;
 }
 
-bool Board::movePiece(const Move &move){
-    if (auto* nm = std::get_if<Nmove>(&move)) {
+bool Board::movePiece(const Move &move)
+{
+    if (auto *nm = std::get_if<Nmove>(&move))
+    {
         return nmovePiece(nm);
-    } else if (auto* sm = std::get_if<Smove>(&move)) {
+    }
+    else if (auto *sm = std::get_if<Smove>(&move))
+    {
         return smovePiece(sm);
     }
     return false;
 }
 
-void Board::undo(const UndoNmove *undo_nmove)
-{   
-    castles = undo_nmove->castles;
-    enpass = undo_nmove->enpass;
-    setField(undo_nmove->to.x, undo_nmove->to.y, undo_nmove->to_field);
-    setField(undo_nmove->from.x, undo_nmove->from.y, undo_nmove->from_field);
-    on_move = !on_move;
-}
-
 bool Board::undoMove()
-{   
-    if (undo_stack.size() < 1)
+{
+    if (undo_stack.empty())
         return false;
 
-    if (auto* nmn = std::get_if<UndoNmove>(&undo_stack.back())) {
-        undo(nmn);
-    } else if (auto* smn = std::get_if<UndoSmove>(&undo_stack.back())) {
-        undo(&(smn->first));
-        on_move = !on_move;
-        undo(&(smn->second));
+    if (auto *nmn = std::get_if<UndoNmove>(&undo_stack.back()))
+    {
+        restore(*nmn);
+    }
+    else if (auto *smn = std::get_if<UndoSmove>(&undo_stack.back()))
+    {
+        restore(smn->second);
+        restore(smn->first);
     }
     undo_stack.pop_back();
+    on_move = !on_move;
     return true;
+}
+
+static int pieceValue(char piece)
+{
+    switch (tolower(piece))
+    {
+    case 'p': return 1;
+    case 'n': return 3;
+    case 'b': return 3;
+    case 'r': return 5;
+    case 'q': return 9;
+    default: return 0;
+    }
 }
 
 int Board::getScore()
 {
-    if (isMate())
+    if (!hasLegalMove())
     {
-        return on_move ? -1000 : 1000;
-    }
-    else if (isStaleMate())
-    {
+        if (isCheck())
+            return on_move ? -1000 : 1000;
         return 0;
     }
-    int white = 0;
-    int black = 0;
-    for (size_t i = 0; i < 8; i++)
+    int score = 0;
+    for (int i = 0; i < 8; i++)
     {
-        for (size_t j = 0; j < 8; j++)
+        for (int j = 0; j < 8; j++)
         {
             char piece = getField(i, j);
-            if (VALUES.find(tolower(piece)) == VALUES.end())
+            if (piece == '\0')
                 continue;
-            if (islower(piece))
-                black += VALUES.at(tolower(piece));
-            else
-                white += VALUES.at(tolower(piece));
+            score += isupper(piece) ? pieceValue(piece) : -pieceValue(piece);
         }
     }
-    return white - black;
+    return score;
 }
 
 int Board::eval()

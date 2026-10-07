@@ -2,9 +2,10 @@
 #define BOARD_H
 
 #include <string>
-#include <map>
 #include <vector>
 #include <utility>
+#include <variant>
+#include <stdexcept>
 #include <iostream>
 
 enum Collision {
@@ -43,15 +44,12 @@ typedef std::variant<UndoNmove, UndoSmove> UndoMove;
 
 class Board {
 private:
-    const std::map<char, int> VALUES = {{'r', 5}, {'n', 3}, {'b', 3}, {'q', 9}, {'p', 1}, {'k', 0}};
-
     char arr[64]; // [y*8 + x]
     unsigned int castles; // 0b1000: white ks, 0b0100 white qs, 0b0010 black ks, 0b0001 black qs
     Coords enpass; // (x, y)
     bool on_move; // true: white, false: black
 
     std::vector<UndoMove> undo_stack;
-    std::vector<bool> undo_special;
 
     std::vector<std::string> splitFen(const std::string &str);
     char getField(int x, int y);
@@ -71,13 +69,18 @@ private:
     bool rChecking(Coords from, char piece = 'r');
     bool qChecking(Coords from);
     bool pChecking(Coords from);
+    bool kChecking(Coords from);
     
     Coords getKingOnMove();
     
     std::vector<Nmove> normalMoves();
     std::vector<Smove> specialMoves();
     
-    void undo(const UndoNmove *undo_nmove);
+    // applies a move without legality check and without switching the side to move
+    UndoNmove applyNmove(const Nmove &move);
+    // reverts applyNmove (does not switch the side to move)
+    void restore(const UndoNmove &undo);
+    bool hasLegalMove();
     
     bool smovePiece(const Smove *smove);
     bool nmovePiece(const Nmove *nmove);
@@ -88,7 +91,6 @@ private:
 
 public:
     Board(std::string fen = "");
-    Board(const Board &other);
     
     friend std::ostream &operator<<(std::ostream &os, Board &bd);
 

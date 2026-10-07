@@ -28,7 +28,7 @@ $(TARGET): $(OBJS)
 
 # Clean up
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJS) $(TARGET) $(TEST_TARGET)
 
 # Run the program
 run: $(TARGET)
@@ -38,5 +38,14 @@ run: $(TARGET)
 debug: CXXFLAGS += -g -DDEBUG
 debug: clean $(TARGET)
 
+# Tests (perft + regression tests)
+TEST_TARGET = chess_tests
+
+$(TEST_TARGET): tests/tests.cpp board.cpp engine.cpp $(HEADERS)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) tests/tests.cpp board.cpp engine.cpp
+
+test: $(TEST_TARGET)
+	./$(TEST_TARGET)
+
 # Phony targets
-.PHONY: all clean run debug
+.PHONY: all clean run debug test

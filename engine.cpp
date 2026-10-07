@@ -1,12 +1,11 @@
 #include "engine.h"
 #include <algorithm>
-#include <cassert>
+#include <stdexcept>
 
 Engine::Engine(std::string fen) : bd(fen) {}
 
 Engine::Engine(std::string fen, std::vector<std::string> _flags) : bd(fen)
 {
-    flags = 0b11;
     for (const auto &flag : _flags)
     {
         if (flag == "noprint")
@@ -17,7 +16,7 @@ Engine::Engine(std::string fen, std::vector<std::string> _flags) : bd(fen)
 }
 
 std::pair<int, std::vector<Move>> Engine::getBest(
-    Board &bd, int depth, int alpha = -1000, int beta = 1000)
+    Board &bd, int depth, int alpha, int beta)
 {
     if (depth == 0) {
         return {bd.eval(), {}};
@@ -94,12 +93,17 @@ void Engine::printResult(Board bd, int score, const Move &bmove)
 
 void Engine::findBestVariant(int depth)
 {
+    if (depth < 0)
+        throw std::invalid_argument("depth must not be negative");
+
     clock_t start = clock();
 
     auto [score, b_moves] = getBest(bd, depth);
     if(!bd.onMove()) score = -score;
 
-    if (flags & 0b01)
+    if (b_moves.empty())
+        std::cout << "best variant: " << score << "\nno moves to play (depth 0, mate or stalemate)\n";
+    else if (flags & 0b01)
         printResult(bd, score, b_moves);
     else
         printResult(bd, score, b_moves[0]);
